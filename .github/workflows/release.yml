@@ -81,23 +81,6 @@ jobs:
             ${{ env.IMAGE }}:latest-amd64 \
             ${{ env.IMAGE }}:latest-arm64
 
-  make-public:
-    needs: merge-manifests
-    runs-on: ubuntu-24.04
-    permissions:
-      packages: write
-    steps:
-      - name: Make packages public
-        run: |
-          gh api --method PATCH \
-            /orgs/syscode-labs/packages/container/oci-pivot-controller \
-            -f visibility=public
-          gh api --method PATCH \
-            /orgs/syscode-labs/packages/container/charts%2Foci-pivot-controller \
-            -f visibility=public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   release-helm:
     needs: merge-manifests
     runs-on: ubuntu-24.04
