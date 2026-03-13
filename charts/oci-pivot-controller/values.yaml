@@ -1,0 +1,28 @@
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []
+
+image:
+  repository: ghcr.io/syscode-labs/oci-pivot-controller
+  tag: ""
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+oci:
+  # OCI compartment OCID used when creating secondary private IPs and reserved public IPs.
+  # Can be overridden per-resource via PivotIP.spec.compartmentId.
+  compartmentId: ""
+
+leaderElect: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

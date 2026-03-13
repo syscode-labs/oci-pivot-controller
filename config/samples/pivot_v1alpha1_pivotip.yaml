@@ -1,9 +1,16 @@
 apiVersion: pivot.oci.io/v1alpha1
 kind: PivotIP
 metadata:
-  labels:
-    app.kubernetes.io/name: oci-pivot-controller
-    app.kubernetes.io/managed-by: kustomize
   name: pivotip-sample
+  namespace: default
 spec:
-  # TODO(user): Add fields here
+  # Service in the same namespace to assign the floating public IP to.
+  serviceRef:
+    name: my-app
+
+  # Optional: restrict eligible nodes to a specific availability domain.
+  # nodeSelector:
+  #   topology.kubernetes.io/zone: uk-london-1-ad-1
+
+  # Optional: override the controller's default OCI compartment.
+  # compartmentId: ocid1.compartment.oc1..aaaa...

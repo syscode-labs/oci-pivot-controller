@@ -1,121 +1,151 @@
 # oci-pivot-controller
-// TODO(user): Add simple overview of use/purpose
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+[![CI](https://github.com/syscode-labs/oci-pivot-controller/actions/workflows/ci.yml/badge.svg)](https://github.com/syscode-labs/oci-pivot-controller/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/syscode-labs/oci-pivot-controller/actions/workflows/codeql.yml/badge.svg)](https://github.com/syscode-labs/oci-pivot-controller/actions/workflows/codeql.yml)
+[![Go Version](https://img.shields.io/badge/go-1.25-00ADD8?logo=go)](https://go.dev/doc/devel/release)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-## Getting Started
+**oci-pivot-controller is a Kubernetes controller that gives your cluster a stable floating public IP on OCI — and automatically moves it to a healthy node if the current one goes down.**
 
-### Prerequisites
-- go version v1.24.6+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+In plain terms: you create a `PivotIP` resource pointing at a Service, and the controller reserves a real OCI public IP address and wires it up so traffic reaches your app. If the node holding that IP becomes unhealthy, the controller detects it, picks a better node, and re-routes traffic — without you doing anything. The IP address never changes.
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+It works entirely through OCI's native networking (secondary private IPs + reserved public IPs). No load balancer, no cloud provider integration, no CNI changes required.
 
-```sh
-make docker-build docker-push IMG=<some-registry>/oci-pivot-controller:tag
+## What It Manages
+
+- `PivotIP`: assigns and maintains a floating OCI reserved public IP for a Kubernetes Service
+
+## How It Works
+
+1. You create a `PivotIP` pointing at a Service.
+2. The controller picks the healthiest node (fewest existing assignments, must be Ready).
+3. It creates a secondary private IP on that node's VNIC and attaches a reserved OCI public IP to it.
+4. It sets `Service.spec.externalIPs` so the node intercepts and routes inbound traffic to your pods.
+5. When the node becomes unhealthy, the controller moves the secondary private IP to a new node and reassigns the public IP — the address stays the same.
+
+## Prerequisites
+
+- Kubernetes cluster running on OCI Compute instances (Ampere A1 or x86)
+- OCI IAM policy granting the controller permission to manage private and public IPs (see below)
+- `helm` (recommended) or `kubectl`
+
+### Required OCI IAM Policy
+
+The controller uses [instance principal authentication](https://docs.oracle.com/en-us/iaas/Content/Identity/Tasks/callingservicesfrominstances.htm) — no API key needed. Add this policy to the dynamic group that contains your cluster nodes:
+
+```
+Allow dynamic-group <your-node-group> to manage private-ips in compartment <your-compartment>
+Allow dynamic-group <your-node-group> to manage public-ips in compartment <your-compartment>
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+## Quickstart
 
-**Install the CRDs into the cluster:**
+### Install with Helm (Recommended)
+
+```sh
+helm upgrade --install oci-pivot-controller \
+  oci://ghcr.io/syscode-labs/charts/oci-pivot-controller \
+  --version <version> \
+  -n oci-pivot-system --create-namespace \
+  --set oci.compartmentId=ocid1.compartment.oc1..example
+
+kubectl -n oci-pivot-system get pods
+```
+
+### Install with Kustomize
 
 ```sh
 make install
+make deploy IMG=ghcr.io/syscode-labs/oci-pivot-controller:<tag>
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+### Uninstall
 
 ```sh
-make deploy IMG=<some-registry>/oci-pivot-controller:tag
+helm uninstall oci-pivot-controller -n oci-pivot-system
+# or (kustomize path)
+make undeploy && make uninstall
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+## First Floating IP in 5 Minutes
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+Create a Service and a PivotIP in the `default` namespace:
 
 ```sh
-kubectl apply -k config/samples/
+kubectl apply -f - <<'EOF'
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app
+  namespace: default
+spec:
+  selector:
+    app: my-app
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: pivot.oci.io/v1alpha1
+kind: PivotIP
+metadata:
+  name: my-app-ip
+  namespace: default
+spec:
+  serviceRef:
+    name: my-app
+EOF
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
-
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+Check status:
 
 ```sh
-kubectl delete -k config/samples/
+kubectl get pivotip -n default
+# NAME         PUBLIC IP    NODE           SERVICE    AGE
+# my-app-ip    1.2.3.4      node-worker1   my-app     30s
+
+kubectl describe pivotip my-app-ip -n default
 ```
 
-**Delete the APIs(CRDs) from the cluster:**
+The `PUBLIC IP` column shows the OCI reserved public IP. Traffic to that address on port 80 reaches your app pods via the elected node.
 
-```sh
-make uninstall
+## PivotIP Reference
+
+```yaml
+apiVersion: pivot.oci.io/v1alpha1
+kind: PivotIP
+metadata:
+  name: my-app-ip
+  namespace: default
+spec:
+  # Service in the same namespace to attach the floating IP to. Required.
+  serviceRef:
+    name: my-app
+
+  # Only nodes matching these labels are eligible to hold the IP.
+  # If omitted, all Ready nodes are eligible.
+  nodeSelector:
+    topology.kubernetes.io/zone: uk-london-1-ad-1
+
+  # OCI compartment OCID for creating IP resources.
+  # Defaults to the --compartment-id flag set on the controller.
+  compartmentId: ocid1.compartment.oc1..example
 ```
 
-**UnDeploy the controller from the cluster:**
+## Examples
 
-```sh
-make undeploy
-```
+See [`examples/`](examples/) for complete real-world use cases:
 
-## Project Distribution
-
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/oci-pivot-controller:tag
-```
-
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/oci-pivot-controller/<tag or branch>/dist/install.yaml
-```
-
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-kubebuilder edit --plugins=helm/v2-alpha
-```
-
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
-
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
+- [`examples/nginx-floating-ip/`](examples/nginx-floating-ip/) — Nginx exposed with a floating public IP, zone-pinned to a specific availability domain
 
 ## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
 
-**NOTE:** Run `make help` for more information on all potential `make` targets
+Pull requests welcome. Run `make help` for all available targets.
 
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+```sh
+make test     # run unit + integration tests
+make lint     # lint
+make build    # compile
+```
 
 ## License
 
@@ -132,4 +162,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-

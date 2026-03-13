@@ -1,6 +1,8 @@
 name: Release
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -15,6 +17,7 @@ env:
 jobs:
   build-push:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: amd64
@@ -36,13 +39,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build context note
+        run: echo "::notice title=Build context::Building linux/${{ matrix.arch }} on native runner ${{ matrix.runner }}."
+
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/${{ matrix.arch }}
           push: true
           tags: |
-            ${{ env.IMAGE }}:${{ inputs.tag }}-${{ matrix.arch }}
+            ${{ env.IMAGE }}:${{ github.event.release.tag_name || inputs.tag }}-${{ matrix.arch }}
             ${{ env.IMAGE }}:latest-${{ matrix.arch }}
 
   merge-manifests:
@@ -51,6 +57,8 @@ jobs:
     permissions:
       packages: write
     steps:
+      - uses: docker/setup-buildx-action@v3
+
       - uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -58,12 +66,61 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create multi-arch manifests
+        shell: bash
         run: |
+          set -euo pipefail
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+
           docker buildx imagetools create \
-            -t ${{ env.IMAGE }}:${{ inputs.tag }} \
-            ${{ env.IMAGE }}:${{ inputs.tag }}-amd64 \
-            ${{ env.IMAGE }}:${{ inputs.tag }}-arm64
+            -t ${{ env.IMAGE }}:${TAG} \
+            ${{ env.IMAGE }}:${TAG}-amd64 \
+            ${{ env.IMAGE }}:${TAG}-arm64
+
           docker buildx imagetools create \
             -t ${{ env.IMAGE }}:latest \
             ${{ env.IMAGE }}:latest-amd64 \
             ${{ env.IMAGE }}:latest-arm64
+
+  make-public:
+    needs: merge-manifests
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    steps:
+      - name: Make packages public
+        run: |
+          gh api --method PATCH \
+            /orgs/syscode-labs/packages/container/oci-pivot-controller \
+            -f visibility=public
+          gh api --method PATCH \
+            /orgs/syscode-labs/packages/container/charts%2Foci-pivot-controller \
+            -f visibility=public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-helm:
+    needs: merge-manifests
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Log in to GHCR (Helm)
+        run: helm registry login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package and push Helm chart
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          CHART_VERSION="${TAG#v}"
+
+          helm package charts/oci-pivot-controller \
+            --version "${CHART_VERSION}" \
+            --app-version "${TAG}"
+
+          helm push "oci-pivot-controller-${CHART_VERSION}.tgz" \
+            oci://ghcr.io/syscode-labs/charts

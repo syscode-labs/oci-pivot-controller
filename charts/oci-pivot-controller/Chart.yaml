@@ -1,0 +1,12 @@
+apiVersion: v2
+name: oci-pivot-controller
+description: Kubernetes controller for floating OCI public IPs — automatically moves reserved public IPs to healthy nodes
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - oci
+  - floating-ip
+  - kubernetes
+  - controller
+home: https://github.com/syscode-labs/oci-pivot-controller

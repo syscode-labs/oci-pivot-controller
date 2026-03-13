@@ -1,0 +1,12 @@
+apiVersion: pivot.oci.io/v1alpha1
+kind: PivotIP
+metadata:
+  name: nginx-ip
+  namespace: default
+spec:
+  serviceRef:
+    name: nginx
+  # Pin to nodes in a specific availability domain.
+  # Remove nodeSelector to allow election across all Ready nodes.
+  nodeSelector:
+    topology.kubernetes.io/zone: uk-london-1-ad-1
