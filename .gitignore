@@ -28,3 +28,18 @@ go.work
 
 # Kubeconfig might contain secrets
 *.kubeconfig
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+release/
+
+# Local overrides
+*.local.yaml
+*.local.json
+
+# Claude
+.claude/

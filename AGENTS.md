@@ -1,4 +1,60 @@
-# oci-pivot-controller - AI Agent Guide
+# oci-pivot-controller — Agent Guide
+
+## What this is
+
+A Kubernetes controller that provides MetalLB-style floating public IPs on OCI — without MetalLB.
+OCI blocks gratuitous ARP (no L2 mode) and has no BGP peering, so this controller uses OCI's native
+secondary private IP + reserved public IP API to route traffic to the right node, then relies on
+`Service.spec.externalIPs` + Cilium for node→pod DNAT.
+
+## Architecture
+
+- `api/v1alpha1/pivotip_types.go` — `PivotIP` CRD: serviceRef, nodeSelector, compartmentId
+- `internal/oci/client.go` — OCI API wrapper (instance principal auth, VNIC + IP lifecycle)
+- `internal/controller/pivotip_controller.go` — reconciler: balance-elect node, create/reassign OCI IPs, patch Service externalIPs, finalizer cleanup
+- Node watcher triggers re-election when a node goes NotReady
+
+## Essential commands
+
+```bash
+make generate      # regenerate zz_generated.deepcopy.go after types change
+make manifests     # regenerate CRDs + RBAC after marker changes — COMMIT THE RESULT
+make test          # unit + envtest
+make lint          # golangci-lint (custom binary with logcheck plugin)
+make build         # build binary
+```
+
+## After changing api/v1alpha1/pivotip_types.go
+
+Always run in this order:
+1. `make generate`
+2. `make manifests`
+3. `make test`
+4. Commit all three outputs together
+
+## Coding conventions
+
+- **Logging**: K8s structured style — capital first word, no period, past tense for events
+  - `log.Info("secondary private IP created", "ocid", ocid, "ip", addr)` ✓
+  - `log.Info("creating secondary private IP...")` ✗
+- **RBAC markers**: on the `Reconcile()` function, not `SetupWithManager()`
+- **Reconciler**: always idempotent — check `pip.Status.*OCID` before calling OCI API
+- **Finalizer**: `pivot.oci.io/finalizer` — added on first reconcile, removed only after OCI cleanup
+- **OCI errors**: wrap with `fmt.Errorf("context: %w", err)`, never swallow
+
+## OCI instance principal auth
+
+The controller authenticates as the OCI node instance — no API key or Secret needed.
+Requires an IAM dynamic group + policy (see `docs/iam-policy.md` once created).
+Local dev: set `OCI_CONFIG_FILE` + `OCI_PROFILE` env vars to use a file-based provider instead.
+
+## Troubleshooting
+
+- **`instance principal provider` error locally**: running outside OCI — use `OCI_CONFIG_FILE` env var
+- **Node has no providerID**: OCI CCM not installed, or node not yet registered — check `kubectl get node -o yaml`
+- **409 Conflict on public IP creation**: IP already exists in OCI but not in status — check OCI console, import OCID into status manually or delete in OCI
+
+---
 
 ## Project Structure
 
