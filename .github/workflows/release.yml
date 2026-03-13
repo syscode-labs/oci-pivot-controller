@@ -42,7 +42,7 @@ jobs:
       - name: Build context note
         run: echo "::notice title=Build context::Building linux/${{ matrix.arch }} on native runner ${{ matrix.runner }}."
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/${{ matrix.arch }}
