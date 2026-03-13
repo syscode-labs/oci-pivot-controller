@@ -22,8 +22,12 @@ linters:
     - unconvert
     - unparam
     - unused
+    - gosec
     - logcheck
   settings:
+    gosec:
+      severity: medium
+      confidence: medium
     custom:
       logcheck:
         type: "module"
@@ -53,6 +57,10 @@ formatters:
   enable:
     - gofmt
     - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/syscode-labs/oci-pivot-controller
   exclusions:
     generated: lax
     paths:
