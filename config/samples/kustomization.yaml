@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- pivot_v1alpha1_pivotip.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

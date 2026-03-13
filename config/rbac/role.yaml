@@ -1,0 +1,50 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - pivot.oci.io
+  resources:
+  - pivotips
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - pivot.oci.io
+  resources:
+  - pivotips/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - pivot.oci.io
+  resources:
+  - pivotips/status
+  verbs:
+  - get
+  - patch
+  - update
