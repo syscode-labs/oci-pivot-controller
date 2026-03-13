@@ -38,9 +38,7 @@ jobs:
           git diff --exit-code || (echo "Run 'make manifests' and commit the result" && exit 1)
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
-        with:
-          version: v2.8.0
+        run: make lint
 
       - name: Install gitleaks
         run: |

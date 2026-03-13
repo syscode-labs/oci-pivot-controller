@@ -3,13 +3,20 @@
 [![CI](https://github.com/syscode-labs/oci-pivot-controller/actions/workflows/ci.yml/badge.svg)](https://github.com/syscode-labs/oci-pivot-controller/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/syscode-labs/oci-pivot-controller/actions/workflows/codeql.yml/badge.svg)](https://github.com/syscode-labs/oci-pivot-controller/actions/workflows/codeql.yml)
 [![Go Version](https://img.shields.io/badge/go-1.25-00ADD8?logo=go)](https://go.dev/doc/devel/release)
+[![Image](https://img.shields.io/github/v/release/syscode-labs/oci-pivot-controller?label=ghcr.io&logo=docker&color=blue)](https://github.com/syscode-labs/oci-pivot-controller/pkgs/container/oci-pivot-controller)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
+<p>
+  <img align="left" src=".github/assets/pivot.png" alt="oci-pivot-controller mascot" width="288" />
+</p>
 
 **oci-pivot-controller is a Kubernetes controller that gives your cluster a stable floating public IP on OCI — and automatically moves it to a healthy node if the current one goes down.**
 
 In plain terms: you create a `PivotIP` resource pointing at a Service, and the controller reserves a real OCI public IP address and wires it up so traffic reaches your app. If the node holding that IP becomes unhealthy, the controller detects it, picks a better node, and re-routes traffic — without you doing anything. The IP address never changes.
 
 It works entirely through OCI's native networking (secondary private IPs + reserved public IPs). No load balancer, no cloud provider integration, no CNI changes required.
+
+<br clear="left" />
 
 ## What It Manages
 
