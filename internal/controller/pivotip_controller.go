@@ -37,16 +37,16 @@ import (
 )
 
 const (
-	finalizerName       = "pivot.oci.io/finalizer"
-	defaultCompartment  = "" // overridden by controller flag at startup
+	finalizerName      = "pivot.oci.io/finalizer"
+	defaultCompartment = "" // overridden by controller flag at startup
 )
 
 // PivotIPReconciler reconciles PivotIP objects.
 type PivotIPReconciler struct {
 	client.Client
-	Scheme              *runtime.Scheme
-	OCI                 *ociutil.Client
-	DefaultCompartment  string
+	Scheme             *runtime.Scheme
+	OCI                ociutil.Interface
+	DefaultCompartment string
 }
 
 // +kubebuilder:rbac:groups=pivot.oci.io,resources=pivotips,verbs=get;list;watch;create;update;patch;delete
@@ -87,11 +87,6 @@ func (r *PivotIPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 func (r *PivotIPReconciler) reconcileNormal(ctx context.Context, pip *pivotv1alpha1.PivotIP) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	compartment := pip.Spec.CompartmentID
-	if compartment == "" {
-		compartment = r.DefaultCompartment
-	}
-
 	// Elect the best node (fewest current pivot assignments, must be Ready).
 	elected, err := r.electNode(ctx, pip)
 	if err != nil {
@@ -120,7 +115,6 @@ func (r *PivotIPReconciler) reconcileNormal(ctx context.Context, pip *pivotv1alp
 			if err := r.OCI.DeletePrivateIP(ctx, privateIPOCID); err != nil {
 				log.Error(err, "failed to delete old secondary private IP (continuing)", "ocid", privateIPOCID)
 			}
-			privateIPOCID = ""
 		}
 
 		// Create a new secondary private IP on the elected node's VNIC.

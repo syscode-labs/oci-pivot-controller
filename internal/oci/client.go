@@ -28,6 +28,28 @@ import (
 	"github.com/oracle/oci-go-sdk/v65/core"
 )
 
+// Interface is the OCI operations contract used by the controller.
+// The concrete Client uses instance principal auth; fake.Client is the test double.
+type Interface interface {
+	// PrimaryVNICForInstance returns the OCID of the primary VNIC attached to an OCI instance.
+	PrimaryVNICForInstance(ctx context.Context, instanceOCID string) (string, error)
+	// CreateSecondaryPrivateIP creates a secondary private IP on the given VNIC.
+	CreateSecondaryPrivateIP(ctx context.Context, vnicID string) (ocid, ipAddr string, err error)
+	// DeletePrivateIP deletes a secondary private IP by OCID.
+	DeletePrivateIP(ctx context.Context, privateIPOCID string) error
+	// CreateReservedPublicIP creates a reserved public IP attached to the given private IP.
+	CreateReservedPublicIP(ctx context.Context, privateIPOCID, displayName string) (ocid, ipAddr string, err error)
+	// ReassignPublicIP moves a reserved public IP to a different private IP.
+	ReassignPublicIP(ctx context.Context, publicIPOCID, newPrivateIPOCID string) error
+	// GetPublicIPAddress returns the current IP address string for a public IP OCID.
+	GetPublicIPAddress(ctx context.Context, publicIPOCID string) (string, error)
+	// DeletePublicIP deletes a reserved public IP by OCID.
+	DeletePublicIP(ctx context.Context, publicIPOCID string) error
+}
+
+// compile-time check that *Client satisfies Interface.
+var _ Interface = &Client{}
+
 // Client wraps the OCI VirtualNetwork and Compute clients.
 type Client struct {
 	vnet          core.VirtualNetworkClient
@@ -94,7 +116,7 @@ func (c *Client) CreateSecondaryPrivateIP(ctx context.Context, vnicID string) (o
 		return "", "", fmt.Errorf("create private ip on vnic %s: %w", vnicID, err)
 	}
 
-	return *resp.PrivateIp.Id, *resp.PrivateIp.IpAddress, nil
+	return *resp.Id, *resp.IpAddress, nil
 }
 
 // DeletePrivateIP deletes a secondary private IP by OCID.
@@ -123,7 +145,7 @@ func (c *Client) CreateReservedPublicIP(ctx context.Context, privateIPOCID, disp
 		return "", "", fmt.Errorf("create reserved public ip: %w", err)
 	}
 
-	return *resp.PublicIp.Id, *resp.PublicIp.IpAddress, nil
+	return *resp.Id, *resp.IpAddress, nil
 }
 
 // ReassignPublicIP moves a reserved public IP to a different secondary private IP.
@@ -150,10 +172,10 @@ func (c *Client) GetPublicIPAddress(ctx context.Context, publicIPOCID string) (s
 	if err != nil {
 		return "", fmt.Errorf("get public ip %s: %w", publicIPOCID, err)
 	}
-	if resp.PublicIp.IpAddress == nil {
+	if resp.IpAddress == nil {
 		return "", fmt.Errorf("public ip %s has no address yet (still provisioning)", publicIPOCID)
 	}
-	return *resp.PublicIp.IpAddress, nil
+	return *resp.IpAddress, nil
 }
 
 // DeletePublicIP deletes a reserved public IP by OCID.

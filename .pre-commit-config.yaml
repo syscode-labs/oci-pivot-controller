@@ -18,7 +18,8 @@ repos:
       - id: golangci-lint
         name: golangci-lint
         language: system
-        entry: golangci-lint run --fix
+        entry: make
+        args: [lint]
         types: [go]
         pass_filenames: false
 
