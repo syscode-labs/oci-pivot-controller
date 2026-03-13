@@ -1,0 +1,28 @@
+name: Kubeconform
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        k8s: ["1.29", "1.30", "1.31"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          curl -sSfL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
+            | tar -xz -C /usr/local/bin
+
+      - name: Install kustomize
+        run: |
+          curl -sSfL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.3.0/kustomize_v5.3.0_linux_amd64.tar.gz \
+            | tar -xz -C /usr/local/bin
+
+      - name: Validate manifests
+        run: |
+          kustomize build config/default \
+            | kubeconform -strict -ignore-missing-schemas \
+              -kubernetes-version ${{ matrix.k8s }}.0

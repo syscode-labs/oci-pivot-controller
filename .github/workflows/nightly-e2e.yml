@@ -1,0 +1,53 @@
+name: Nightly E2E
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-e2e
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - uses: helm/kind-action@v1
+
+      - name: Build and load image
+        run: |
+          make docker-build IMG=controller:test
+          kind load docker-image controller:test
+
+      - name: Run E2E
+        run: make test-e2e
+        continue-on-error: true
+        id: e2e
+
+      - name: Collect diagnostics
+        if: steps.e2e.outcome == 'failure'
+        run: |
+          mkdir -p /tmp/diagnostics
+          kubectl get nodes -o wide > /tmp/diagnostics/nodes.txt
+          kubectl get pods -A > /tmp/diagnostics/pods.txt
+          kubectl get events -A --sort-by='.lastTimestamp' > /tmp/diagnostics/events.txt
+          kubectl logs -n oci-pivot-system -l control-plane=controller-manager > /tmp/diagnostics/controller.log || true
+
+      - name: Upload diagnostics
+        if: steps.e2e.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-diagnostics
+          path: /tmp/diagnostics/
+
+      - name: Fail if E2E failed
+        if: steps.e2e.outcome == 'failure'
+        run: exit 1
