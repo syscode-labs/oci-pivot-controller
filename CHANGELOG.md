@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/syscode-labs/oci-pivot-controller/compare/v1.0.1...v1.1.0) (2026-08-08)
+
+
+### Features
+
+* support sourcing compartment-id from a Secret via env var ([#25](https://github.com/syscode-labs/oci-pivot-controller/issues/25)) ([edff3f4](https://github.com/syscode-labs/oci-pivot-controller/commit/edff3f407130251410eeb4e3ac916e5c380cfad3))
+
 ## [1.0.1](https://github.com/syscode-labs/oci-pivot-controller/compare/v1.0.0...v1.0.1) (2026-08-08)
 
 
