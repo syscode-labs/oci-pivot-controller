@@ -139,6 +139,14 @@ func (c *Client) CreateReservedPublicIP(ctx context.Context, privateIPOCID, disp
 			Lifetime:      core.CreatePublicIpDetailsLifetimeReserved,
 			DisplayName:   common.String(displayName),
 			PrivateIpId:   common.String(privateIPOCID),
+			// oci-free-tier-monitor's orphan-IP cleanup skips anything
+			// carrying this tag, regardless of lifecycle_state. Without it,
+			// the monitor's scheduled scan can race this controller's own
+			// detach/reattach during a failover — the IP briefly reads
+			// AVAILABLE mid-reassignment — and delete a live Service's VIP.
+			FreeformTags: map[string]string{
+				"pivot.oci.io/managed": "true",
+			},
 		},
 	})
 	if err != nil {
