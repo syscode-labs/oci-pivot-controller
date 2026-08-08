@@ -12,9 +12,18 @@ replicaCount: 1
 oci:
   # OCI compartment OCID used when creating secondary private IPs and reserved public IPs.
   # Can be overridden per-resource via PivotIP.spec.compartmentId.
+  # Prefer extraEnvFrom + OCI_COMPARTMENT_ID over this when the value
+  # shouldn't be a plain Helm value (e.g. sourced from an External Secret).
   compartmentId: ""
 
 leaderElect: false
+
+# Extra envFrom entries on the manager container, e.g. to source
+# OCI_COMPARTMENT_ID from a Secret instead of oci.compartmentId above:
+#   extraEnvFrom:
+#     - secretRef:
+#         name: oci-pivot-controller-config
+extraEnvFrom: []
 
 resources:
   requests:

@@ -81,9 +81,11 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
-	flag.StringVar(&compartmentID, "compartment-id", "",
+	flag.StringVar(&compartmentID, "compartment-id", os.Getenv("OCI_COMPARTMENT_ID"),
 		"OCI compartment OCID used when creating secondary private IPs and reserved public IPs. "+
-			"Can be overridden per-resource via PivotIP.spec.compartmentId.")
+			"Can be overridden per-resource via PivotIP.spec.compartmentId. Falls back to the "+
+			"OCI_COMPARTMENT_ID env var when unset, so it can be sourced from a Secret rather "+
+			"than a Helm value.")
 	opts := zap.Options{
 		Development: true,
 	}
